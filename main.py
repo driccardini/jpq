@@ -354,6 +354,19 @@ def main() -> None:
             .stApp, .stApp p, .stApp label, .stApp div {
                 color: #0f172a;
             }
+            div[data-baseweb="select"] > div {
+                background: #0f172a;
+                border-color: #334155;
+            }
+            div[data-baseweb="select"] * {
+                color: #ffffff !important;
+            }
+            div[role="listbox"] ul,
+            div[role="listbox"] li,
+            div[role="option"] {
+                color: #ffffff !important;
+                background-color: #0f172a !important;
+            }
             .match-card {
                 border: 1px solid rgba(148, 163, 184, 0.28);
                 border-radius: 16px;
@@ -481,10 +494,7 @@ def main() -> None:
 
     st.title("JPQ 1er Abierto 2026")
 
-    with st.sidebar:
-        st.header("Configuración")
-        sheet_url = st.text_input("URL Google Sheet", value=DEFAULT_SHEET_URL)
-        st.caption("Tip: necesitás permisos públicos de lectura para que funcione.")
+    sheet_url = DEFAULT_SHEET_URL
 
     try:
         with st.spinner("Cargando categorías..."):
