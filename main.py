@@ -500,7 +500,7 @@ def main() -> None:
 
     category_labels = {display_category_name(name): name for name in categories}
     category_option_labels = ["Todas las categorías"] + list(category_labels.keys())
-    selected_label = st.selectbox("🏷️ Categoría", options=category_option_labels)
+    selected_label = st.selectbox("🏷️ Categoría", options=category_option_labels, index=0)
 
     all_matches = parse_all_visible_matches(workbook_bytes, tuple(categories))
 
@@ -520,7 +520,12 @@ def main() -> None:
     render_category_status_summary(matches)
 
     all_zones = sorted(matches["Zona"].dropna().unique().tolist())
-    selected_zone = st.selectbox("🗺️ Zona (opcional)", options=["Todas"] + all_zones)
+    selected_zone = st.selectbox(
+        "🗺️ Zona (opcional)",
+        options=["Todas"] + all_zones,
+        index=0,
+        key=f"zone_filter_{selected_label}",
+    )
 
     all_complexes = sorted(
         [complex_name for complex_name in matches["Complejo"].dropna().unique().tolist() if complex_name]
@@ -550,21 +555,29 @@ def main() -> None:
         st.info("No hay partidos para ese filtro en esta categoría.")
         st.stop()
 
-    zones = sorted(filtered["Zona"].dropna().unique().tolist())
-    for zone_name in zones:
-        st.markdown(f"<div class='zone-title'>{zone_name}</div>", unsafe_allow_html=True)
+    if selected_label == "Todas las categorías" and "Categoría" in filtered.columns:
+        for category_name in sorted(filtered["Categoría"].dropna().unique().tolist()):
+            st.markdown(f"## 🏷️ {category_name}")
+            category_matches = filtered[filtered["Categoría"] == category_name].copy()
+            zones = sorted(category_matches["Zona"].dropna().unique().tolist())
+            for zone_name in zones:
+                st.markdown(f"<div class='zone-title'>{zone_name}</div>", unsafe_allow_html=True)
+                render_match_cards(category_matches[category_matches["Zona"] == zone_name])
+    else:
+        zones = sorted(filtered["Zona"].dropna().unique().tolist())
+        for zone_name in zones:
+            st.markdown(f"<div class='zone-title'>{zone_name}</div>", unsafe_allow_html=True)
+            render_match_cards(filtered[filtered["Zona"] == zone_name])
 
-        zone_matches = filtered[filtered["Zona"] == zone_name].copy()
-        if selected_label == "Todas las categorías" and "Categoría" in zone_matches.columns:
-            for category_name in sorted(zone_matches["Categoría"].dropna().unique().tolist()):
-                st.markdown(f"**{category_name}**")
-                render_match_cards(zone_matches[zone_matches["Categoría"] == category_name])
-        else:
-            render_match_cards(zone_matches)
+    table_data = filtered.copy()
+    if selected_label == "Todas las categorías" and "Categoría" in table_data.columns:
+        table_data = table_data.sort_values(by=["Categoría", "Zona", "Día", "Hora"], na_position="last")
+    else:
+        table_data = table_data.sort_values(by=["Zona", "Día", "Hora"], na_position="last")
 
     with st.expander("Ver tabla"):
         st.dataframe(
-            filtered[
+            table_data[
                 [
                     "Zona",
                     "Categoría",
