@@ -26,7 +26,7 @@ La app trae por defecto tu sheet de torneo y detecta automáticamente las pesta�
 - Selector de **Zona**
 - Tarjetas de partidos (día, hora, complejo, parejas y resultado)
 - Tabla expandible con detalle
-- Actualización automática cada **4 minutos**
+- Actualización automática cada **15 minutos**
 
 ## Notas
 

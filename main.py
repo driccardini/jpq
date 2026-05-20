@@ -290,7 +290,7 @@ def main() -> None:
         <script>
             setTimeout(function () {
                 window.parent.location.reload();
-            }, 240000);
+            }, 900000);
         </script>
         """,
         height=0,
