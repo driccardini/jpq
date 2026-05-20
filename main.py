@@ -3,19 +3,23 @@ from __future__ import annotations
 import base64
 from datetime import date, datetime, time
 from io import BytesIO
+import json
 from pathlib import Path
 import re
 
+import google.auth.transport.requests
+from google.oauth2 import service_account
 import pandas as pd
 import requests
 import streamlit as st
 import streamlit.components.v1 as components
 from openpyxl import load_workbook
 
-DEFAULT_SHEET_URL = (
-    "https://docs.google.com/spreadsheets/d/"
-    "1qWFq1BTFnsxuKLnhprXz4N0FYfmL1lVf-hG_ldSf1jQ/edit?usp=sharing"
-)
+DEFAULT_SHEET_ID = "1zw2Zrz5nc68YrO8Vcchcs6XQ8HRcX4XzewoJBaMAiAM"
+SERVICE_ACCOUNT_FILE = Path(__file__).parent / "kk.json"
+SHEETS_SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
+
+ENABLED_CATEGORIES = {"D2", "D4", "D5", "D6", "D7"}
 
 MATCH_COLUMNS = [
     "Zona",
@@ -38,23 +42,36 @@ MATCH_COLUMNS = [
 BACKGROUND_IMAGE_PATH = Path("assets/logo.png")
 
 
-def extract_sheet_id(url: str) -> str:
-    match = re.search(r"/spreadsheets/d/([a-zA-Z0-9-_]+)", url)
-    if not match:
-        raise ValueError("No pude detectar el ID del Google Sheet en la URL.")
-    return match.group(1)
+def _get_credentials() -> service_account.Credentials:
+    """Load service account credentials from st.secrets or local file."""
+    if "gcp_service_account" in st.secrets:
+        info = dict(st.secrets["gcp_service_account"])
+        return service_account.Credentials.from_service_account_info(info, scopes=SHEETS_SCOPES)
+    return service_account.Credentials.from_service_account_file(
+        str(SERVICE_ACCOUNT_FILE), scopes=SHEETS_SCOPES
+    )
 
 
-def to_export_url(sheet_id: str) -> str:
-    return f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=xlsx"
+def _export_url(sheet_id: str) -> str:
+    return (
+        f"https://www.googleapis.com/drive/v3/files/{sheet_id}/export"
+        "?mimeType=application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
 
 @st.cache_data(ttl=60)
-def download_workbook_bytes(sheet_url: str) -> bytes:
-    sheet_id = extract_sheet_id(sheet_url)
-    response = requests.get(to_export_url(sheet_id), timeout=30)
+def download_workbook_bytes(sheet_id: str) -> bytes:
+    creds = _get_credentials()
+    auth_req = google.auth.transport.requests.Request()
+    creds.refresh(auth_req)
+    headers = {"Authorization": f"Bearer {creds.token}"}
+    response = requests.get(_export_url(sheet_id), headers=headers, timeout=30)
     response.raise_for_status()
     return response.content
+
+
+def display_category_name(category_sheet: str) -> str:
+    return re.sub(r"\s*Zonas\s*", "", category_sheet, flags=re.IGNORECASE).strip()
 
 
 @st.cache_data(ttl=60)
@@ -63,7 +80,9 @@ def get_visible_category_sheets(workbook_bytes: bytes) -> list[str]:
     return [
         worksheet.title
         for worksheet in workbook.worksheets
-        if worksheet.sheet_state == "visible" and "Zonas" in worksheet.title
+        if worksheet.sheet_state == "visible"
+        and "Zonas" in worksheet.title
+        and display_category_name(worksheet.title) in ENABLED_CATEGORIES
     ]
 
 
@@ -196,8 +215,6 @@ def parse_all_visible_matches(workbook_bytes: bytes, category_sheets: tuple[str,
     return pd.concat(all_frames, ignore_index=True)
 
 
-def display_category_name(category_sheet: str) -> str:
-    return re.sub(r"\s*Zonas\s*", "", category_sheet, flags=re.IGNORECASE).strip()
 
 
 def build_score_text(match: pd.Series) -> str:
@@ -492,13 +509,13 @@ def main() -> None:
     if logo_css:
         st.markdown(logo_css, unsafe_allow_html=True)
 
-    st.title("JPQ 1er Abierto 2026")
+    st.title("JPQ 2do Abierto 2026")
 
-    sheet_url = DEFAULT_SHEET_URL
+    sheet_id = DEFAULT_SHEET_ID
 
     try:
         with st.spinner("Cargando categorías..."):
-            workbook_bytes = download_workbook_bytes(sheet_url)
+            workbook_bytes = download_workbook_bytes(sheet_id)
             categories = get_visible_category_sheets(workbook_bytes)
     except Exception as error:
         st.error(f"No pude leer la planilla: {error}")
